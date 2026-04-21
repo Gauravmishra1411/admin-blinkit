@@ -1,0 +1,72 @@
+const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
+
+// Initialize Firebase Admin
+// Note: This requires a Service Account Key. 
+// If you don't have one, I will provide instructions to get it.
+// For now, I'll use the client SDK approach if we can't get admin access.
+
+const products = [
+  {
+    "category": "Shirt",
+    "createdAt": new Date("2026-04-20T10:00:00Z"),
+    "description": "Stylish casual shirt for men",
+    "discountPercent": "20",
+    "discountType": "Summer Sale",
+    "galleryUrls": [
+      "https://picsum.photos/seed/shirt1/500",
+      "https://picsum.photos/seed/shirt1b/500"
+    ],
+    "gender": "Men",
+    "imageUrl": "https://picsum.photos/seed/shirt1/500",
+    "inStock": true,
+    "mrp": 999,
+    "name": "Casual Cotton Shirt 1",
+    "productCode": "SHIRT001",
+    "selectedSizes": ["S", "M", "L"],
+    "stock": 50,
+    "updatedAt": new Date(),
+    "variations": [
+      {
+        "price": "799",
+        "type": "color",
+        "value": "Blue"
+      }
+    ]
+  },
+  {
+    "category": "Shirt",
+    "createdAt": new Date("2026-04-20T10:01:00Z"),
+    "description": "Premium formal shirt",
+    "discountPercent": "30",
+    "discountType": "Festive Offer",
+    "galleryUrls": [
+      "https://picsum.photos/seed/shirt2/500",
+      "https://picsum.photos/seed/shirt2b/500"
+    ],
+    "gender": "Men",
+    "imageUrl": "https://picsum.photos/seed/shirt2/500",
+    "inStock": true,
+    "mrp": 1299,
+    "name": "Formal Shirt 2",
+    "productCode": "SHIRT002",
+    "selectedSizes": ["M", "L", "XL"],
+    "stock": 40,
+    "updatedAt": new Date(),
+    "variations": [
+      {
+        "price": "999",
+        "type": "color",
+        "value": "White"
+      }
+    ]
+  }
+];
+
+// Since we are in a local environment, I'll suggest using a simpler method 
+// by adding a button in your Flutter app temporarily to seed the data, 
+// as it already has the Firebase Auth and Firestore initialized.
+
+console.log("To seed data safely, I have added a temporary 'Seed Data' button to your Add Product screen.");
