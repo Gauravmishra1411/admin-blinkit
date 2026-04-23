@@ -113,7 +113,6 @@ class _ProductsViewState extends State<ProductsView> {
               }
 
               return GridView.builder(
-              return GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: MediaQuery.of(context).size.width > 1500 ? 5 : (MediaQuery.of(context).size.width > 1100 ? 4 : (MediaQuery.of(context).size.width > 700 ? 2 : 1)),
                   childAspectRatio: 0.7,
