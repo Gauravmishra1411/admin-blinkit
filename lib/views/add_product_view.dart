@@ -11,8 +11,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AddProductView extends StatefulWidget {
   final Map<String, dynamic>? product;
   final int? index;
+  final bool initialIsRecent;
 
-  const AddProductView({super.key, this.product, this.index});
+  const AddProductView({super.key, this.product, this.index, this.initialIsRecent = true});
 
   @override
   State<AddProductView> createState() => _AddProductViewState();
@@ -35,8 +36,11 @@ class _AddProductViewState extends State<AddProductView> {
   List<Uint8List> galleryImagesBytes = [];
   List<Map<String, dynamic>> variations = [];
   bool isUploading = false;
+  bool isVisible = true;
+  bool isRecent = true;
+  bool bumpToTop = false; // New variable to track bumping
+  List<String> existingGalleryUrls = [];
 
-  // UI state for the new design
   List<String> selectedSizes = [];
   String selectedGender = 'Unisex';
   String selectedCategory = 'Jacket';
@@ -45,6 +49,7 @@ class _AddProductViewState extends State<AddProductView> {
   @override
   void initState() {
     super.initState();
+    isRecent = widget.initialIsRecent;
     final bool isEdit = widget.product != null;
     double _toDouble(dynamic value) {
       if (value == null) return 0.0;
@@ -75,6 +80,13 @@ class _AddProductViewState extends State<AddProductView> {
           : [];
       selectedSizes = List<String>.from(widget.product!['selectedSizes'] ?? []);
       selectedGender = widget.product!['gender'] ?? 'Unisex';
+      isVisible = widget.product!['isVisible'] ?? true;
+      isRecent = widget.product!['isRecent'] ?? true;
+      existingGalleryUrls = List<String>.from(
+        (widget.product!['galleryUrls'] is List) 
+        ? widget.product!['galleryUrls'] 
+        : (widget.product!['gallery'] is List) ? widget.product!['gallery'] : []
+      );
       
       // Fix for Dropdown error: Ensure the loaded category is in the list
       String? loadedCategory = widget.product!['category'];
@@ -155,6 +167,21 @@ class _AddProductViewState extends State<AddProductView> {
     }
   }
 
+  Future<String?> _uploadUrlToCloudinary(String url) async {
+    try {
+      if (url.contains('cloudinary.com')) return url; // Already on Cloudinary
+      
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        return await _uploadImageToCloudinary(response.bodyBytes, 'synced_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      }
+      return url; // Fallback to original if download fails
+    } catch (e) {
+      debugPrint('Error syncing URL to Cloudinary: $e');
+      return url;
+    }
+  }
+
   void _showError(String message) {
     if (mounted) {
       _showErrorDialog('Upload Error', message);
@@ -197,25 +224,25 @@ class _AddProductViewState extends State<AddProductView> {
           return; 
         }
         mainUrl = url;
+      } else if (mainUrl.isNotEmpty) {
+        // If it's an existing URL, sync it to Cloudinary if it isn't already
+        final syncedUrl = await _uploadUrlToCloudinary(mainUrl);
+        if (syncedUrl != null) mainUrl = syncedUrl;
       }
 
-      // Upload gallery images if changed
-      List<String> galleryUrls = [];
-      if (widget.product != null) {
-        galleryUrls = List<String>.from(
-          (widget.product!['galleryUrls'] is List) 
-          ? widget.product!['galleryUrls'] 
-          : (widget.product!['gallery'] is List) ? widget.product!['gallery'] : []
-        );
+      // Process Gallery: Mix of existing and new
+      List<String> finalGalleryUrls = [];
+      
+      // 1. Existing URLs (Sync them to Cloudinary if they aren't already)
+      for (String url in existingGalleryUrls) {
+        final syncedUrl = await _uploadUrlToCloudinary(url);
+        if (syncedUrl != null) finalGalleryUrls.add(syncedUrl);
       }
 
+      // 2. New Bytes
       if (galleryImagesBytes.isNotEmpty) {
          final urls = await _uploadMultipleImagesToCloudinary(galleryImagesBytes);
-         if (urls.isEmpty && galleryImagesBytes.isNotEmpty) {
-           setState(() => isUploading = false);
-           return; 
-         }
-         galleryUrls.addAll(urls);
+         finalGalleryUrls.addAll(urls);
       }
 
       final productData = {
@@ -228,11 +255,16 @@ class _AddProductViewState extends State<AddProductView> {
         'stock': int.tryParse(stockController.text) ?? 0,
         'inStock': inStock,
         'imageUrl': mainUrl,
-        'galleryUrls': galleryUrls,
+        'galleryUrls': finalGalleryUrls,
         'gender': selectedGender,
         'selectedSizes': selectedSizes,
         'variations': variations,
         'productCode': productCodeController.text,
+        'isVisible': isVisible,
+        'isRecent': isRecent,
+        'recentAddedAt': isRecent 
+            ? (bumpToTop ? FieldValue.serverTimestamp() : (widget.product?['recentAddedAt'] ?? FieldValue.serverTimestamp())) 
+            : null,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -298,11 +330,16 @@ class _AddProductViewState extends State<AddProductView> {
           const SizedBox(width: 10),
           _buildTopButton('Seed Data', Icons.storage, Colors.orange.shade100, Colors.black, false, isSeed: true),
           const SizedBox(width: 10),
+          const SizedBox(width: 10),
+          if (isUploading)
+            const Center(child: Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))),
           _buildTopButton('Add Product', Icons.check, const Color(0xFFC0F0C0), Colors.black, true),
           const SizedBox(width: 20),
         ],
       ),
-      body: SingleChildScrollView(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
         child: Column(
           children: [
@@ -331,15 +368,61 @@ class _AddProductViewState extends State<AddProductView> {
                       _buildUploadImageSection(),
                       const SizedBox(height: 20),
                       _buildCategorySection(),
+                      const SizedBox(height: 20),
+                      _buildVisibilitySection(),
                     ],
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 40),
+            // Bottom Save Button
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton.icon(
+                onPressed: isUploading ? null : _saveToFirebase,
+                icon: isUploading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.cloud_upload_outlined),
+                label: Text(
+                  isUploading ? 'Uploading Product...' : (widget.product == null ? 'Publish Product to Store' : 'Update Product Details'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111C43),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 60),
           ],
         ),
       ),
-    );
+      if (isUploading)
+        Container(
+          color: Colors.black26,
+          child: const Center(
+            child: Card(
+              elevation: 4,
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFF4CA1AF)),
+                    SizedBox(height: 16),
+                    Text('Saving Product...', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Uploading images and syncing with database', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+);
   }
 
   Widget _buildVariantsSection() {
@@ -622,11 +705,10 @@ class _AddProductViewState extends State<AddProductView> {
             child: Row(
               children: [
                 // Gallery from URL (existing)
-                if (widget.product != null && (widget.product!['galleryUrls'] != null || widget.product!['gallery'] != null || widget.product!['images'] != null))
-                  ...(widget.product!['galleryUrls'] ?? widget.product!['gallery'] ?? widget.product!['images'] as List).map((url) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _buildThumbnail(url: url),
-                  )),
+                ...existingGalleryUrls.map((url) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _buildThumbnail(url: url, onDelete: () => setState(() => existingGalleryUrls.remove(url))),
+                )),
                 // Gallery from local bytes (newly picked)
                 ...galleryImagesBytes.asMap().entries.map((entry) => Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -651,7 +733,36 @@ class _AddProductViewState extends State<AddProductView> {
           _buildDropdownField(null, selectedCategory, categories, onChanged: (v) => setState(() => selectedCategory = v!)),
           const SizedBox(height: 20),
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () {
+              final newCategoryController = TextEditingController();
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Add New Category'),
+                  content: TextField(
+                    controller: newCategoryController,
+                    decoration: const InputDecoration(hintText: 'Category name (e.g. Grocery, Beauty)'),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () {
+                        if (newCategoryController.text.isNotEmpty) {
+                          setState(() {
+                            if (!categories.contains(newCategoryController.text)) {
+                              categories.add(newCategoryController.text);
+                            }
+                            selectedCategory = newCategoryController.text;
+                          });
+                        }
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Add'),
+                    ),
+                  ],
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB0F0B0),
               elevation: 0,
@@ -838,6 +949,50 @@ class _AddProductViewState extends State<AddProductView> {
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Icon(Icons.add, color: Color(0xFFB0F0B0)),
+      ),
+    );
+  }
+
+  Widget _buildVisibilitySection() {
+    return _buildContainerSection(
+      title: 'Status & Visibility',
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: const Text('Show on User App', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: const Text('Toggle product visibility for customers', style: TextStyle(fontSize: 12)),
+            value: isVisible,
+            activeColor: const Color(0xFF4CA1AF),
+            onChanged: (val) => setState(() => isVisible = val),
+          ),
+          const Divider(),
+          SwitchListTile(
+            title: const Text('Mark as Recent', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: const Text('Display in "Recently Added" section', style: TextStyle(fontSize: 12)),
+            value: isRecent,
+            activeColor: const Color(0xFF4CA1AF),
+            onChanged: (val) => setState(() => isRecent = val),
+          ),
+          if (widget.product != null && isRecent)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: bumpToTop,
+                    activeColor: const Color(0xFF4CA1AF),
+                    onChanged: (val) => setState(() => bumpToTop = val ?? false),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Bump to Top (Refresh recent timestamp)',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

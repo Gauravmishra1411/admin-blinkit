@@ -37,55 +37,38 @@ class _ProductsViewState extends State<ProductsView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              width: 300,
-              height: 45,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  hintText: 'Search by name, category, or brand...',
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _seedData(),
-                  icon: const Icon(Icons.storage),
-                  label: const Text('Seed Data'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange.shade400,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _navigateToAddProduct(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add New Product'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CA1AF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            )
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            bool isSmall = constraints.maxWidth < 700;
+            return isSmall 
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSearchField(),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: _buildSeedButton()),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildAddButton()),
+                      ],
+                    )
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildSearchField(),
+                    Row(
+                      children: [
+                        _buildSeedButton(),
+                        const SizedBox(width: 12),
+                        _buildAddButton(),
+                      ],
+                    )
+                  ],
+                );
+          },
         ),
         const SizedBox(height: 20),
         
@@ -130,8 +113,9 @@ class _ProductsViewState extends State<ProductsView> {
               }
 
               return GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
+              return GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.of(context).size.width > 1500 ? 5 : (MediaQuery.of(context).size.width > 1100 ? 4 : (MediaQuery.of(context).size.width > 700 ? 2 : 1)),
                   childAspectRatio: 0.7,
                   crossAxisSpacing: 20,
                   mainAxisSpacing: 20,
@@ -169,13 +153,63 @@ class _ProductsViewState extends State<ProductsView> {
     );
   }
 
+  Widget _buildSearchField() {
+    return Container(
+      width: 300,
+      height: 45,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: TextField(
+        controller: _searchController,
+        decoration: const InputDecoration(
+          hintText: 'Search products...',
+          prefixIcon: Icon(Icons.search, color: Colors.grey),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeedButton() {
+    return ElevatedButton.icon(
+      onPressed: () => _seedData(),
+      icon: const Icon(Icons.storage, size: 18),
+      label: const Text('Seed'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.orange.shade400,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildAddButton() {
+    return ElevatedButton.icon(
+      onPressed: () => _navigateToAddProduct(),
+      icon: const Icon(Icons.add, size: 18),
+      label: const Text('Add Product'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF4CA1AF),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
   void _showProductStats(Map<String, dynamic> product) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
         child: Container(
-          width: 600,
+          width: MediaQuery.of(context).size.width > 700 ? 600 : double.infinity,
           height: 450,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -454,6 +488,18 @@ class _ProductsViewState extends State<ProductsView> {
                         child: Text(
                           inStock ? 'In Stock' : 'Out of Stock',
                           style: TextStyle(color: inStock ? Colors.green : Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (product['isVisible'] ?? true) ? Colors.blue.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          (product['isVisible'] ?? true) ? 'Visible' : 'Hidden',
+                          style: TextStyle(color: (product['isVisible'] ?? true) ? Colors.blue : Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       )
                     ],

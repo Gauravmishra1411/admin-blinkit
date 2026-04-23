@@ -9,6 +9,7 @@ import 'views/vendors_view.dart';
 import 'views/users_view.dart';
 import 'views/categories_view.dart';
 import 'views/banners_view.dart';
+import 'views/recently_added_view.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,107 +29,87 @@ class _DashboardPageState extends State<DashboardPage> {
     const UsersView(),
     const CategoriesView(),
     const BannersView(),
+    const RecentlyAddedView(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 1000;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FE), // Light background for the content area
+      backgroundColor: const Color(0xFFF4F7FE),
+      appBar: isMobile 
+        ? AppBar(
+            backgroundColor: const Color(0xFF111C43),
+            title: const Text('Admin Hub', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            iconTheme: const IconThemeData(color: Colors.white),
+            elevation: 0,
+          )
+        : null,
+      drawer: isMobile ? Drawer(
+        backgroundColor: const Color(0xFF111C43),
+        child: _buildSidebarContent(),
+      ) : null,
       body: Row(
         children: [
-          // Left Sidebar
-          Container(
-            width: 250,
-            color: const Color(0xFF111C43), // Dark sleek sidebar
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                // Brand Header
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.dashboard_rounded, color: Colors.white, size: 28),
-                      SizedBox(width: 10),
-                      Text(
-                        'Admin Hub',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Navigation Items
-                _buildNavItem(Icons.analytics_outlined, 'Overview', 0),
-                _buildNavItem(Icons.receipt_long_outlined, 'Orders', 1),
-                _buildNavItem(Icons.inventory_2_outlined, 'Products', 2),
-                _buildNavItem(Icons.storefront_outlined, 'Vendors', 3),
-                _buildNavItem(Icons.people_outline, 'Customer Users', 4),
-                _buildNavItem(Icons.category_outlined, 'Categories', 5),
-                _buildNavItem(Icons.campaign_outlined, 'Handpicked Banners', 6),
-                
-                const Spacer(), // Pushes logout to the bottom
-                
-                const Divider(color: Colors.white24, height: 1),
-                _buildNavItem(Icons.logout, 'Logout', -1, isLogout: true),
-                const SizedBox(height: 20),
-              ],
+          // Left Sidebar (Only visible on Desktop)
+          if (!isMobile)
+            Container(
+              width: 250,
+              color: const Color(0xFF111C43),
+              child: _buildSidebarContent(),
             ),
-          ),
           
           // Main Content Area
           Expanded(
             child: Column(
               children: [
-                // Top App Bar like area
-                Container(
-                  height: 70,
-                  padding: const EdgeInsets.symmetric(horizontal: 30),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 5,
-                        offset: Offset(0, 2),
-                      )
-                    ]
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _getPageTitle(_selectedIndex),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF111C43),
+                // Header (Only visible on Desktop or when needed)
+                if (!isMobile)
+                  Container(
+                    height: 70,
+                    padding: const EdgeInsets.symmetric(horizontal: 30),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 5,
+                          offset: Offset(0, 2),
+                        )
+                      ]
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _getPageTitle(_selectedIndex),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF111C43),
+                          ),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.notifications_none, color: Colors.grey),
-                            onPressed: () {},
-                          ),
-                          const SizedBox(width: 20),
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFF4CA1AF),
-                            child: Icon(Icons.person, color: Colors.white),
-                          ),
-                        ],
-                      )
-                    ],
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.notifications_none, color: Colors.grey),
+                              onPressed: () {},
+                            ),
+                            const SizedBox(width: 20),
+                            const CircleAvatar(
+                              backgroundColor: Color(0xFF4CA1AF),
+                              child: Icon(Icons.person, color: Colors.white),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
                   ),
-                ),
                 // View Content
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(30.0),
+                    padding: EdgeInsets.all(isMobile ? 16.0 : 30.0),
                     child: _views[_selectedIndex],
                   ),
                 ),
@@ -137,6 +118,48 @@ class _DashboardPageState extends State<DashboardPage> {
           )
         ],
       ),
+    );
+  }
+
+  Widget _buildSidebarContent() {
+    return Column(
+      children: [
+        const SizedBox(height: 40),
+        // Brand Header
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20.0),
+          child: Row(
+            children: [
+              Icon(Icons.dashboard_rounded, color: Colors.white, size: 28),
+              SizedBox(width: 10),
+              Text(
+                'Admin Hub',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
+        // Navigation Items
+        _buildNavItem(Icons.analytics_outlined, 'Overview', 0),
+        _buildNavItem(Icons.receipt_long_outlined, 'Orders', 1),
+        _buildNavItem(Icons.inventory_2_outlined, 'Products', 2),
+        _buildNavItem(Icons.storefront_outlined, 'Vendors', 3),
+        _buildNavItem(Icons.people_outline, 'Customer Users', 4),
+        _buildNavItem(Icons.category_outlined, 'Categories', 5),
+        _buildNavItem(Icons.campaign_outlined, 'Handpicked Banners', 6),
+        _buildNavItem(Icons.history_outlined, 'Recently Added', 7),
+        
+        const Spacer(),
+        
+        const Divider(color: Colors.white24, height: 1),
+        _buildNavItem(Icons.logout, 'Logout', -1, isLogout: true),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
@@ -195,6 +218,7 @@ class _DashboardPageState extends State<DashboardPage> {
       case 4: return 'Customer Users Directory';
       case 5: return 'Shop Categories';
       case 6: return 'Handpicked Banners';
+      case 7: return 'Recently Added Products';
       default: return '';
     }
   }

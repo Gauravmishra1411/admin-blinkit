@@ -46,10 +46,16 @@ class _OrderDetailViewState extends State<OrderDetailView> {
   Widget build(BuildContext context) {
     final data = widget.orderData;
     final items = (data['items'] as List<dynamic>?) ?? [];
-    final timestamp = data['createdAt'] as Timestamp?;
-    final dateStr = timestamp != null
-        ? DateFormat('MMM dd, yyyy - hh:mm a').format(timestamp.toDate())
-        : 'N/A';
+    final dynamic rawTimestamp = data['createdAt'];
+    String dateStr = 'N/A';
+    if (rawTimestamp is Timestamp) {
+      dateStr = DateFormat('MMM dd, yyyy - hh:mm a').format(rawTimestamp.toDate());
+    } else if (rawTimestamp is String) {
+      try {
+        final dt = DateTime.parse(rawTimestamp);
+        dateStr = DateFormat('MMM dd, yyyy - hh:mm a').format(dt);
+      } catch (_) {}
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FE),

@@ -185,11 +185,11 @@ class _BannersViewState extends State<BannersView> {
               }
 
               return GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 2 : 1,
                   crossAxisSpacing: 20,
                   mainAxisSpacing: 20,
-                  childAspectRatio: 2.2,
+                  childAspectRatio: MediaQuery.of(context).size.width > 600 ? 2.2 : 1.5,
                 ),
                 itemCount: docs.length,
                 itemBuilder: (context, index) {
