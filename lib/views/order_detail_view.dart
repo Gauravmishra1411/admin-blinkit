@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
+
 
 class OrderDetailView extends StatefulWidget {
   final Map<String, dynamic> orderData;
@@ -35,6 +37,19 @@ class _OrderDetailViewState extends State<OrderDetailView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Order status updated to $newStatus')),
       );
+
+      // Notify the specific user about their order status update
+      final String userId = widget.orderData['userId'] ?? '';
+      if (userId.isNotEmpty) {
+        await NotificationService.notifyUser(
+          userId: userId,
+          title: 'Order $newStatus',
+          message: 'Your order #${orderId.toString().substring(orderId.toString().length > 6 ? orderId.toString().length - 6 : 0)} status has been updated to $newStatus.',
+          type: 'order',
+          metadata: {'orderId': orderId},
+        );
+      }
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error updating status: $e')),

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'models/notification_model.dart';
+import 'services/notification_service.dart';
 import 'login_page.dart';
+
 import 'views/overview_view.dart';
 import 'views/orders_view.dart';
 import 'views/products_view.dart';
@@ -19,7 +23,36 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
+  final NotificationService _notificationService = NotificationService();
+  String _connectionStatus = 'Connecting...';
+  int _unreadCount = 0;
+  List<NotificationItem> _notifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService.initializeFCM();
+    _notificationService.getAdminNotifications().listen((notifs) {
+      debugPrint('Admin received ${notifs.length} notifications');
+      if (mounted) {
+        setState(() {
+          _notifications = notifs;
+          _unreadCount = notifs.where((n) => !n.isRead).length;
+          _connectionStatus = 'Connected';
+        });
+      }
+    }, onError: (e) {
+      debugPrint('Admin Notification Listener Error: $e');
+      if (mounted) {
+        setState(() {
+          _connectionStatus = 'Error: $e';
+        });
+      }
+    });
+  }
+
 
   final List<Widget> _views = [
     const OverviewView(),
@@ -92,9 +125,60 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         Row(
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.notifications_none, color: Colors.grey),
-                              onPressed: () {},
+                            // Connection Status Indicator
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              margin: const EdgeInsets.only(right: 15),
+                              decoration: BoxDecoration(
+                                color: _connectionStatus == 'Connected' ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: _connectionStatus == 'Connected' ? Colors.green : Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _connectionStatus,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: _connectionStatus == 'Connected' ? Colors.green.shade700 : Colors.red.shade700,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.notifications_none, color: Color(0xFF111C43)),
+                                  onPressed: _showNotificationsDropdown,
+                                ),
+                                if (_unreadCount > 0)
+                                  Positioned(
+                                    right: 8,
+                                    top: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                      child: Text(
+                                        _unreadCount > 9 ? '9+' : '$_unreadCount',
+                                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(width: 20),
                             const CircleAvatar(
@@ -120,6 +204,92 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
     );
   }
+
+  void _showNotificationsDropdown() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        alignment: Alignment.topRight,
+        insetPadding: const EdgeInsets.only(top: 80, right: 30),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: StreamBuilder<List<NotificationItem>>(
+          stream: _notificationService.getAdminNotifications(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+              ));
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final notifs = snapshot.data ?? [];
+            final unreadCount = notifs.where((n) => !n.isRead).length;
+
+            return Container(
+              width: 400,
+              height: 500,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Recent Notifications',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111C43)),
+                      ),
+                      if (unreadCount > 0)
+                        TextButton(
+                          onPressed: () => _notificationService.markAllAsRead(),
+                          child: const Text('Mark all read'),
+                        ),
+                    ],
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: notifs.isEmpty
+                        ? const Center(child: Text('No notifications'))
+                        : ListView.builder(
+                            itemCount: notifs.length,
+                            itemBuilder: (context, index) {
+                              final n = notifs[index];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: n.type == 'order' ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                                  child: Icon(
+                                    n.type == 'order' ? Icons.shopping_basket : Icons.notification_important,
+                                    size: 18,
+                                    color: n.type == 'order' ? Colors.blue : Colors.orange,
+                                  ),
+                                ),
+                                title: Text(n.title, style: TextStyle(fontWeight: n.isRead ? FontWeight.normal : FontWeight.bold)),
+                                subtitle: Text(n.message, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                trailing: n.isRead ? null : const CircleAvatar(radius: 4, backgroundColor: Colors.blue),
+                                onTap: () => _notificationService.markAsRead(n.id),
+                              );
+                            },
+                          ),
+                  ),
+                  const Divider(),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _notificationService.clearAll(),
+                      child: const Text('Clear All', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildSidebarContent() {
     return Column(
@@ -152,7 +322,38 @@ class _DashboardPageState extends State<DashboardPage> {
         _buildNavItem(Icons.people_outline, 'Customer Users', 4),
         _buildNavItem(Icons.category_outlined, 'Categories', 5),
         _buildNavItem(Icons.campaign_outlined, 'Handpicked Banners', 6),
-        _buildNavItem(Icons.history_outlined, 'Recently Added', 7),
+        _buildNavItem(Icons.settings_outlined, 'Recently Added', 7),
+        
+        const Divider(color: Colors.white10, indent: 20, endIndent: 20),
+        
+        // Debug Button
+        ListTile(
+          leading: const Icon(Icons.bug_report, color: Colors.orangeAccent, size: 20),
+          title: const Text('Test Notification', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          onTap: () async {
+            try {
+              await FirebaseFirestore.instance.collection('notifications').add({
+                'userId': 'admin',
+                'title': 'Test Admin Notice',
+                'message': 'This is a test notification generated from the dashboard.',
+                'type': 'general',
+                'isRead': false,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Test notification sent! Check the bell icon.')),
+                );
+              }
+            } catch (e) {
+               if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            }
+          },
+        ),
         
         const Spacer(),
         

@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/notification_service.dart';
+
 
 class BannersView extends StatefulWidget {
   const BannersView({super.key});
@@ -97,7 +99,15 @@ class _BannersViewState extends State<BannersView> {
         data['createdAt'] = FieldValue.serverTimestamp();
         data['isActive'] = true; // Enabled by default
         await FirebaseFirestore.instance.collection('banners').add(data);
+        
+        // Notify all users about the new handpicked banner
+        await NotificationService.notifyAllUsers(
+          title: 'Handpicked product just for you!',
+          message: 'Check out: ${_titleController.text.trim()} - ${_subtitleController.text.trim()}',
+          type: 'offer',
+        );
       } else {
+
         await FirebaseFirestore.instance.collection('banners').doc(bannerId).update(data);
       }
 

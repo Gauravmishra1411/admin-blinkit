@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/notification_service.dart';
+
 
 class AddProductView extends StatefulWidget {
   final Map<String, dynamic>? product;
@@ -271,14 +273,29 @@ class _AddProductViewState extends State<AddProductView> {
       if (widget.product == null) {
         productData['createdAt'] = FieldValue.serverTimestamp();
         await FirebaseFirestore.instance.collection('product').add(productData);
+        
+        // Notify all users about new product
+        await NotificationService.notifyAllUsers(
+          title: 'New product added – check it out now!',
+          message: 'Explore our latest addition: ${nameController.text}',
+          type: 'product',
+        );
       } else {
         final String? docId = widget.product!['id'];
         if (docId != null) {
           await FirebaseFirestore.instance.collection('product').doc(docId).update(productData);
+          
+          // Notify users about product update (for now notify all)
+          await NotificationService.notifyAllUsers(
+            title: 'Product Details Updated',
+            message: '${nameController.text} has been updated with new details/price. Check it out!',
+            type: 'product',
+          );
         } else {
           await FirebaseFirestore.instance.collection('product').add(productData);
         }
       }
+
 
       if (mounted) {
         await showDialog(
